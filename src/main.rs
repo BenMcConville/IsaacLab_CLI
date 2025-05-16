@@ -13,21 +13,50 @@ use ratatui::{
     text,
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
-use std::{io, panic};
+use serde::Deserialize;
+use serde_yaml::{Value, from_str};
+
 use std::{
-    io::Write,
+    fs::File,
+    io,
+    io::{Read, Write},
+    panic,
+    path::Path,
     time::{Duration, Instant},
 };
-
 // mod app;
 pub mod events;
 use events::{Actions, handle_key_input};
 pub mod uis;
 use uis::render_main_page_ui;
+pub mod app;
 // use app::App;
 // use event::{Event, EventHandler};
+//
+#[derive(Debug, Deserialize)]
+struct Config {
+    current_task: String,
+    current_dir: String,
+}
 
 fn main() {
+    // Example 1: Deserialize into a Config struct
+    match read_yaml::<Config>("./src/config.yaml") {
+        Ok(config) => {
+            println!("Task: {}", config.current_task);
+            println!("Directory: {}", config.current_dir);
+        }
+        Err(e) => eprintln!("Error reading YAML file: {}", e),
+    }
+
+    // Example 2: Deserialize into a serde_yaml::Value
+    match read_yaml::<Value>("./src/config.yaml") {
+        Ok(value) => {
+            println!("YAML Content: {:#?}", value);
+        }
+        Err(e) => eprintln!("Error reading YAML file: {}", e),
+    }
+
     // Stdout is the output of the termianl and if used io::stdout().flush() all entries in terminal
     // buffer are flushed into termianl for display. execture handles event calles and flushes
     execute!(io::stdout(), EnterAlternateScreen, DisableMouseCapture);
@@ -70,4 +99,23 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>) {
         // Render UI in a separate function
         render_main_page_ui(terminal);
     }
+}
+
+// Read YAML file into a generic type T
+fn read_yaml<T>(file_path: &str) -> Result<T, Box<dyn std::error::Error>>
+where
+    T: for<'de> Deserialize<'de>, // Deserializes for any lifetime
+{
+    // Open the YAML file
+    let path = Path::new(file_path);
+    let mut file = File::open(path)?;
+
+    // Read the contents of the file into a string
+    let mut contents = String::new();
+    file.read_to_string(&mut contents)?;
+
+    // Deserialize the YAML string into the specified type T
+    let result: T = from_str(&contents)?; // contents is a String, so it lives long enough
+
+    Ok(result)
 }

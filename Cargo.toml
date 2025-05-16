@@ -6,3 +6,5 @@ edition = "2024"
 [dependencies]
 crossterm = "0.29.0"
 ratatui = "0.29.0"
+serde = { version = "1.0.219", features = ["derive"] }  # Enable the derive feature
+serde_yaml = "0.9.34"
