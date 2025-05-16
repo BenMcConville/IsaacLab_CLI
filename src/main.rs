@@ -30,8 +30,7 @@ use events::{Actions, handle_key_input};
 pub mod uis;
 use uis::{Mainpage, render_main_page_ui};
 pub mod app;
-use app::App;
-
+use app::{App, State};
 // use event::{Event, EventHandler};
 //
 #[derive(Debug, Deserialize)]
@@ -69,11 +68,13 @@ fn main() {
     let mut terminal = Terminal::new(backend);
     match terminal {
         Ok(mut term) => run_app(&mut term, &mut app),
-        _ => println!("Error init terminal..."),
+        _ => eprintln!("Error init terminal..."),
     }
 
     disable_raw_mode();
-    execute!(io::stdout(), LeaveAlternateScreen, EnableMouseCapture,);
+    execute!(io::stdout(), LeaveAlternateScreen, EnableMouseCapture);
+
+    println!("->{:?}", app.return_template_task());
 
     println!("Finished");
 }
@@ -81,28 +82,12 @@ fn main() {
 // Main app loop function using handle_key_input
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
     let mut mp_struct = Mainpage::new();
-    loop {
-        // Call handle_key_input with a timeout of 5 milliseconds
-        match handle_key_input(Duration::from_micros(5000)) {
-            Some(Actions::Quit) => {
-                println!("Quitting the app...");
-                break; // Break the loop if 'q' is pressed
-            }
-            Some(Actions::Moveup) => {
-                mp_struct.decrease_selection();
-            }
-            Some(Actions::Movedown) => {
-                mp_struct.increase_selection();
-            }
-            Some(Actions::None) => {
-                // Optionally handle the case where no key is pressed
-                // and the timeout occurs
-                // println!("No input detected within the timeout.");
-            }
-            None => {
-                // Error reading the event, handle gracefully
-                eprintln!("Error reading key input.");
-            }
+    app.set_state(app::State::Main);
+    while *app.get_state() == app::State::Main {
+        if *mp_struct.get_create_window() {
+            task_creating(&mut mp_struct, app);
+        } else {
+            task_browsing(&mut mp_struct, app);
         }
 
         // Render UI in a separate function
@@ -127,4 +112,78 @@ where
     let result: T = from_str(&contents)?; // contents is a String, so it lives long enough
 
     Ok(result)
+}
+
+fn task_browsing(mp_struct: &mut Mainpage, app: &mut App) {
+    // Call handle_key_input with a timeout of 5 milliseconds
+    match handle_key_input(Duration::from_micros(5000), false) {
+        Some(Actions::Quit) => {
+            app.set_state(app::State::Exit);
+        }
+        Some(Actions::Createtask) => {
+            app.create_new_template_task();
+            mp_struct.set_create_window(true);
+        }
+        Some(Actions::Moveup) => {
+            mp_struct.decrease_selection();
+            mp_struct.set_active_view(false);
+        }
+        Some(Actions::Movedown) => {
+            mp_struct.increase_selection();
+            mp_struct.set_active_view(false);
+        }
+        Some(Actions::Enter) => {
+            mp_struct.set_active_view(true);
+        }
+        Some(Actions::None) => {
+            // Optionally handle the case where no key is pressed
+            // and the timeout occurs
+            // println!("No input detected within the timeout.");
+        }
+        None => {
+            // Error reading the event, handle gracefully
+            eprintln!("Error reading key input.");
+        }
+        _ => {
+            eprint!(" Unidenfitied Enum");
+        }
+    }
+}
+
+fn task_creating(mp_struct: &mut Mainpage, app: &mut App) {
+    // Call handle_key_input with a timeout of 5 milliseconds
+    match handle_key_input(Duration::from_micros(5000), true) {
+        Some(Actions::Quit) => {
+            mp_struct.set_create_window(false);
+        }
+        Some(Actions::Char(c)) => {
+            app.write_to_buffer(c);
+        }
+        Some(Actions::Delete) => {
+            app.pop_last_elem();
+        }
+        Some(Actions::Moveup) => {
+            mp_struct.decrease_selection();
+            mp_struct.set_active_view(false);
+        }
+        Some(Actions::Movedown) => {
+            mp_struct.increase_selection();
+            mp_struct.set_active_view(false);
+        }
+        Some(Actions::Enter) => {
+            mp_struct.set_active_view(true);
+        }
+        Some(Actions::None) => {
+            // Optionally handle the case where no key is pressed
+            // and the timeout occurs
+            // println!("No input detected within the timeout.");
+        }
+        None => {
+            // Error reading the event, handle gracefully
+            eprintln!("Error reading key input.");
+        }
+        _ => {
+            eprint!(" Unidenfitied Enum");
+        }
+    }
 }

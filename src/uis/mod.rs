@@ -1,26 +1,37 @@
 use ratatui::{
     Terminal,
     backend::{self, CrosstermBackend},
-    layout::{Constraint, Direction, Layout},
+    layout::Alignment,
+    layout::{Constraint, Direction, Layout, Rect},
     prelude::Backend,
     style::{Color, Modifier, Style},
-    text::Span,
-    widgets::{Block, Borders, List, ListItem, ListState, Paragraph},
+    text::{Line, Span, Text},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
 };
 
 pub struct Mainpage {
     task_selection: usize,
+    active_view: bool,
     task_list: Vec<String>,
+    task_running: bool,
+    task_execution_location: String,
+    wandb: bool,
+    create_window: bool,
 }
 impl Mainpage {
     pub fn new() -> Self {
         Self {
             task_selection: 0,
+            active_view: false,
             task_list: vec![
                 String::from("test01"),
                 String::from("test02"),
                 String::from("test03"),
             ],
+            task_running: false,
+            task_execution_location: String::from("LOCAL"),
+            wandb: false,
+            create_window: false,
         }
     }
     pub fn get_task_queue_names(&self) -> Vec<&str> {
@@ -39,6 +50,29 @@ impl Mainpage {
             // Wrap around from last to first (0-based)
             self.task_selection = (self.task_selection + 1) % len;
         }
+    }
+    pub fn get_task_running(&self) -> &bool {
+        &self.task_running
+    }
+    pub fn get_active_view(&self) -> &bool {
+        &self.active_view
+    }
+    pub fn get_wandb(&self) -> &bool {
+        &self.wandb
+    }
+    pub fn get_task_execution_location(&self) -> &str {
+        &self.task_execution_location
+    }
+
+    pub fn set_active_view(&mut self, set_val: bool) {
+        self.active_view = set_val;
+    }
+    pub fn set_create_window(&mut self, set_val: bool) {
+        self.create_window = set_val;
+    }
+
+    pub fn get_create_window(&self) -> &bool {
+        &self.create_window
     }
 
     pub fn decrease_selection(&mut self) {
@@ -85,12 +119,19 @@ pub fn render_main_page_ui<B: ratatui::backend::Backend>(
                 items
             };
 
+            let selected_color = {
+                if *mp_struct.get_active_view() {
+                    Color::Green
+                } else {
+                    Color::Yellow
+                }
+            };
             let task_list = List::new(task_items)
                 .block(left_block)
                 .highlight_symbol(" > ")
                 .highlight_style(
                     Style::default()
-                        .fg(Color::Yellow)
+                        .fg(selected_color)
                         .add_modifier(Modifier::BOLD),
                 );
 
@@ -99,9 +140,139 @@ pub fn render_main_page_ui<B: ratatui::backend::Backend>(
 
             f.render_stateful_widget(task_list, layout[0], &mut state);
 
+            let right_chunk = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([Constraint::Percentage(30), Constraint::Percentage(70)].as_ref())
+                .split(layout[1]);
+
+            let right_top_block = Block::default().borders(Borders::NONE);
+            let right_bottom_block = Block::default().borders(Borders::NONE);
+
+            // Render the two blocks
+            f.render_widget(right_top_block, right_chunk[0]);
+            f.render_widget(right_bottom_block, right_chunk[1]);
+
+            let upper_right_chunk = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints(
+                    [
+                        Constraint::Length(1),
+                        Constraint::Percentage(70),
+                        Constraint::Percentage(30),
+                    ]
+                    .as_ref(),
+                )
+                .split(right_chunk[0]);
+
+            let upper_right_right_paragraph = {
+                let (status_text, status_color) = if *mp_struct.get_task_running() {
+                    ("Task Running", Color::Green)
+                } else {
+                    ("Task Not Running", Color::Red)
+                };
+
+                let location_text = format!(
+                    "   Task Location: {}",
+                    mp_struct.get_task_execution_location()
+                );
+
+                let (wandb_text, wandb_color) = if *mp_struct.get_wandb() {
+                    ("   WANDB: True", Color::Green)
+                } else {
+                    ("   WANDB: False", Color::Red)
+                };
+
+                Paragraph::new(Text::from(vec![
+                    Line::from(""),
+                    Line::from(Span::styled(status_text, Style::default().fg(status_color))),
+                    Line::from(""),
+                    Line::from(Span::styled(
+                        location_text,
+                        Style::default().fg(Color::White),
+                    )),
+                    Line::from(Span::styled(wandb_text, Style::default().fg(wandb_color))),
+                ]))
+                .alignment(Alignment::Left)
+                .block(Block::default().borders(Borders::NONE).title("Info"))
+            };
+            f.render_widget(upper_right_right_paragraph, upper_right_chunk[2]);
+
+            let upper_right_left_block = Block::default().borders(Borders::NONE);
+            f.render_widget(upper_right_left_block, upper_right_chunk[1]);
+
+            let upper_right_leck_chunk = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints(
+                    [
+                        Constraint::Length(1),
+                        Constraint::Length(3),
+                        Constraint::Length(1),
+                        Constraint::Length(3),
+                        Constraint::Percentage(40),
+                    ]
+                    .as_ref(),
+                )
+                .split(upper_right_chunk[1]);
+
+            let task_name_paragraph = Paragraph::new("   Task Name01").block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(ratatui::widgets::BorderType::Rounded)
+                    .title("Task Name"),
+            );
+            f.render_widget(task_name_paragraph, upper_right_leck_chunk[1]);
+
+            let environment_name_paragraph = Paragraph::new("   Isaac-Push-vBen").block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .border_type(ratatui::widgets::BorderType::Rounded)
+                    .title("Environment"),
+            );
+            f.render_widget(environment_name_paragraph, upper_right_leck_chunk[3]);
+
             // Right side (optional placeholder block)
             let right_block = Block::default().borders(Borders::ALL).title("Options");
             f.render_widget(right_block, layout[1]);
+
+            if *mp_struct.get_create_window() {
+                let popup_area = centered_rect(50, 50, f.size()); // 50% width, 20% height of terminal
+
+                let popup_block = Block::default()
+                    .title("Create Task")
+                    .borders(Borders::ALL)
+                    .border_type(ratatui::widgets::BorderType::Rounded)
+                    .style(Style::default().fg(Color::White).bg(Color::Black));
+
+                // Render your popup content inside popup_area
+                f.render_widget(Clear, popup_area);
+                f.render_widget(popup_block, popup_area);
+            }
         })
         .unwrap();
+}
+
+fn centered_rect(percent_x: u16, percent_y: u16, r: Rect) -> Rect {
+    let popup_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(
+            [
+                Constraint::Percentage((100 - percent_y) / 2),
+                Constraint::Percentage(percent_y),
+                Constraint::Percentage((100 - percent_y) / 2),
+            ]
+            .as_ref(),
+        )
+        .split(r);
+
+    Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(
+            [
+                Constraint::Percentage((100 - percent_x) / 2),
+                Constraint::Percentage(percent_x),
+                Constraint::Percentage((100 - percent_x) / 2),
+            ]
+            .as_ref(),
+        )
+        .split(popup_layout[1])[1]
 }
