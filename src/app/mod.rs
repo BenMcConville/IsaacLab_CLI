@@ -30,4 +30,8 @@ impl App {
         }
         task_queue_names
     }
+
+    pub fn add_task_to_queue(&mut self, task: Task) {
+        self.task_queue.push(task);
+    }
 }

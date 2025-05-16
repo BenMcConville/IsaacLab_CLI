@@ -18,19 +18,20 @@ use serde_yaml::{Value, from_str};
 
 use std::{
     fs::File,
-    io,
-    io::{Read, Write},
+    io::{self, Read, Write},
     panic,
     path::Path,
+    ptr::null,
     time::{Duration, Instant},
 };
 // mod app;
 pub mod events;
 use events::{Actions, handle_key_input};
 pub mod uis;
-use uis::render_main_page_ui;
+use uis::{Mainpage, render_main_page_ui};
 pub mod app;
-// use app::App;
+use app::App;
+
 // use event::{Event, EventHandler};
 //
 #[derive(Debug, Deserialize)]
@@ -49,13 +50,14 @@ fn main() {
         Err(e) => eprintln!("Error reading YAML file: {}", e),
     }
 
-    // Example 2: Deserialize into a serde_yaml::Value
-    match read_yaml::<Value>("./src/config.yaml") {
-        Ok(value) => {
-            println!("YAML Content: {:#?}", value);
-        }
-        Err(e) => eprintln!("Error reading YAML file: {}", e),
-    }
+    // // Example 2: Deserialize into a serde_yaml::Value
+    // match read_yaml::<Value>("./src/config.yaml") {
+    //     Ok(value) => {
+    //         println!("YAML Content: {:#?}", value);
+    //     }
+    //     Err(e) => eprintln!("Error reading YAML file: {}", e),
+    // }
+    let mut app = App::new_app();
 
     // Stdout is the output of the termianl and if used io::stdout().flush() all entries in terminal
     // buffer are flushed into termianl for display. execture handles event calles and flushes
@@ -66,7 +68,7 @@ fn main() {
     // Includes methods like size, clear, cursor pos, ...
     let mut terminal = Terminal::new(backend);
     match terminal {
-        Ok(mut term) => run_app(&mut term),
+        Ok(mut term) => run_app(&mut term, &mut app),
         _ => println!("Error init terminal..."),
     }
 
@@ -77,13 +79,20 @@ fn main() {
 }
 
 // Main app loop function using handle_key_input
-fn run_app<B: Backend>(terminal: &mut Terminal<B>) {
+fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
+    let mut mp_struct = Mainpage::new();
     loop {
         // Call handle_key_input with a timeout of 5 milliseconds
         match handle_key_input(Duration::from_micros(5000)) {
             Some(Actions::Quit) => {
                 println!("Quitting the app...");
                 break; // Break the loop if 'q' is pressed
+            }
+            Some(Actions::Moveup) => {
+                mp_struct.decrease_selection();
+            }
+            Some(Actions::Movedown) => {
+                mp_struct.increase_selection();
             }
             Some(Actions::None) => {
                 // Optionally handle the case where no key is pressed
@@ -97,7 +106,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>) {
         }
 
         // Render UI in a separate function
-        render_main_page_ui(terminal);
+        render_main_page_ui(terminal, &mp_struct);
     }
 }
 
