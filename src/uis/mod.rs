@@ -17,6 +17,9 @@ pub struct Mainpage {
     task_execution_location: String,
     wandb: bool,
     create_window: bool,
+    create_task_name: String,
+    create_env: String,
+    create_dir: String,
 }
 impl Mainpage {
     pub fn new() -> Self {
@@ -32,6 +35,9 @@ impl Mainpage {
             task_execution_location: String::from("LOCAL"),
             wandb: false,
             create_window: false,
+            create_task_name: String::from("Task"),
+            create_env: String::from("env01"),
+            create_dir: String::from("~/dir01"),
         }
     }
     pub fn get_task_queue_names(&self) -> Vec<&str> {
@@ -50,6 +56,21 @@ impl Mainpage {
             // Wrap around from last to first (0-based)
             self.task_selection = (self.task_selection + 1) % len;
         }
+    }
+    pub fn update_temp_task(&mut self, task_name: &str, env_name: &str, dir: &str) {
+        self.create_task_name = String::from(task_name);
+        self.create_env = String::from(env_name);
+        self.create_dir = String::from(dir);
+    }
+
+    pub fn get_temp_name(&self) -> &str {
+        &self.create_task_name
+    }
+    pub fn get_temp_env(&self) -> &str {
+        &self.create_env
+    }
+    pub fn get_temp_dir(&self) -> &str {
+        &self.create_dir
     }
     pub fn get_task_running(&self) -> &bool {
         &self.task_running
@@ -214,7 +235,7 @@ pub fn render_main_page_ui<B: ratatui::backend::Backend>(
                 )
                 .split(upper_right_chunk[1]);
 
-            let task_name_paragraph = Paragraph::new("   Task Name01").block(
+            let task_name_paragraph = Paragraph::new("  Task02").block(
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(ratatui::widgets::BorderType::Rounded)
@@ -245,6 +266,46 @@ pub fn render_main_page_ui<B: ratatui::backend::Backend>(
 
                 // Render your popup content inside popup_area
                 f.render_widget(Clear, popup_area);
+
+                let popup_window = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints(
+                        [
+                            Constraint::Length(1),
+                            Constraint::Length(3),
+                            Constraint::Length(1),
+                            Constraint::Length(3),
+                            Constraint::Length(1),
+                            Constraint::Length(3),
+                        ]
+                        .as_ref(),
+                    )
+                    .split(popup_area);
+
+                let task_name = Paragraph::new(mp_struct.get_temp_name()).block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(ratatui::widgets::BorderType::Rounded)
+                        .title("Task-Name"),
+                );
+                f.render_widget(task_name, popup_window[1]);
+
+                let env_name = Paragraph::new(mp_struct.get_temp_env()).block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(ratatui::widgets::BorderType::Rounded)
+                        .title("Environment-Name"),
+                );
+                f.render_widget(env_name, popup_window[3]);
+
+                let dir_name = Paragraph::new(mp_struct.get_temp_dir()).block(
+                    Block::default()
+                        .borders(Borders::ALL)
+                        .border_type(ratatui::widgets::BorderType::Rounded)
+                        .title("Directory"),
+                );
+                f.render_widget(dir_name, popup_window[5]);
+
                 f.render_widget(popup_block, popup_area);
             }
         })

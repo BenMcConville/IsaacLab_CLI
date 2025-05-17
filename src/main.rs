@@ -74,7 +74,7 @@ fn main() {
     disable_raw_mode();
     execute!(io::stdout(), LeaveAlternateScreen, EnableMouseCapture);
 
-    println!("->{:?}", app.return_template_task());
+    println!("->{:?}", app.task_template_task());
 
     println!("Finished");
 }
@@ -151,39 +151,54 @@ fn task_browsing(mp_struct: &mut Mainpage, app: &mut App) {
 }
 
 fn task_creating(mp_struct: &mut Mainpage, app: &mut App) {
-    // Call handle_key_input with a timeout of 5 milliseconds
     match handle_key_input(Duration::from_micros(5000), true) {
-        Some(Actions::Quit) => {
-            mp_struct.set_create_window(false);
-        }
-        Some(Actions::Char(c)) => {
-            app.write_to_buffer(c);
-        }
-        Some(Actions::Delete) => {
-            app.pop_last_elem();
-        }
-        Some(Actions::Moveup) => {
-            mp_struct.decrease_selection();
-            mp_struct.set_active_view(false);
-        }
-        Some(Actions::Movedown) => {
-            mp_struct.increase_selection();
-            mp_struct.set_active_view(false);
-        }
-        Some(Actions::Enter) => {
-            mp_struct.set_active_view(true);
-        }
-        Some(Actions::None) => {
-            // Optionally handle the case where no key is pressed
-            // and the timeout occurs
-            // println!("No input detected within the timeout.");
-        }
+        // First, handle the None case from the first match
         None => {
-            // Error reading the event, handle gracefully
             eprintln!("Error reading key input.");
         }
-        _ => {
-            eprint!(" Unidenfitied Enum");
+        Some(action) => {
+            // Handle the template task logic if we have a valid key input
+            let template_task = app.read_template_task();
+            match *template_task {
+                Some(ref task) => {
+                    mp_struct.update_temp_task(
+                        task.get_task_name(),
+                        task.get_environment(),
+                        task.get_directory(),
+                    );
+                }
+                _ => (),
+            }
+
+            // Now, handle different actions from the second match based on the key input
+            match action {
+                Actions::Quit => {
+                    mp_struct.set_create_window(false);
+                }
+                Actions::Char(c) => {
+                    app.write_to_buffer(c);
+                }
+                Actions::Delete => {
+                    app.pop_last_elem();
+                }
+                Actions::Moveup => {
+                    app.move_down_fsm();
+                }
+                Actions::Movedown => {
+                    app.move_up_fsm();
+                }
+                Actions::Enter => {
+                    mp_struct.set_active_view(true);
+                }
+                Actions::None => {
+                    // Optionally handle the case where no key is pressed
+                    // and the timeout occurs
+                    // println!("No input detected within the timeout.");
+                }
+                _ => {
+                    eprint!(" Unidentified Enum");
+                }
+            }
         }
     }
 }

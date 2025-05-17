@@ -60,8 +60,11 @@ impl App {
         self.task_queue.push(task);
     }
 
-    pub fn return_template_task(&mut self) -> Option<Task> {
+    pub fn task_template_task(&mut self) -> Option<Task> {
         self.template_task.take()
+    }
+    pub fn read_template_task(&self) -> &Option<Task> {
+        &self.template_task
     }
 
     pub fn write_to_buffer(&mut self, c: char) {
@@ -73,9 +76,35 @@ impl App {
                 let mut name = task.get_task_name().to_string();
                 name.push(c);
                 task.set_task_name(name);
+            } else if creation_state == CreationState::Envname {
+                let mut env_name = task.get_environment().to_string();
+                env_name.push(c);
+                task.set_environment(env_name);
+            } else if creation_state == CreationState::Dir {
+                let mut directory = task.get_directory().to_string();
+                directory.push(c);
+                task.set_directory(directory);
             }
         }
     }
+    pub fn move_down_fsm(&mut self) {
+        match self.creation_state {
+            CreationState::Taskname => self.creation_state = CreationState::Envname,
+            CreationState::Envname => self.creation_state = CreationState::Dir,
+            CreationState::Dir => self.creation_state = CreationState::Taskname,
+            _ => (),
+        }
+    }
+    pub fn move_up_fsm(&mut self) {
+        // Update depending on res
+        match self.creation_state {
+            CreationState::Taskname => self.creation_state = CreationState::Envname,
+            CreationState::Envname => self.creation_state = CreationState::Dir,
+            CreationState::Dir => self.creation_state = CreationState::Taskname,
+            _ => (),
+        }
+    }
+
     pub fn pop_last_elem(&mut self) {
         // Copy out the enum (no borrow of self)!
         let creation_state = *self.get_creation_state();
