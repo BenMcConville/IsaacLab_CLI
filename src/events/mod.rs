@@ -23,7 +23,7 @@ pub fn traverse_with_keys(timeout: Duration) -> Option<Actions> {
         // If there is an event, try to read it
         if let Ok(Event::Key(key)) = event::read() {
             match key.code {
-                KeyCode::Char('q') => return Some(Actions::Quit), // Quit if 'q' is pressed
+                KeyCode::Esc => return Some(Actions::Quit), // Quit if 'q' is pressed
                 KeyCode::Char('c') => return Some(Actions::Createtask), // Quit if 'q' is pressed
                 KeyCode::Up => return Some(Actions::Moveup),
                 KeyCode::Down => return Some(Actions::Movedown),
