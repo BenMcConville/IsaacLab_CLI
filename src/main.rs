@@ -15,7 +15,8 @@ use ratatui::{
 };
 use serde::Deserialize;
 use serde_yaml::{Value, from_str};
-
+use std::sync::{Arc, Mutex};
+use std::thread;
 use std::{
     fs::File,
     io::{self, Read, Write},
@@ -23,6 +24,10 @@ use std::{
     path::Path,
     ptr::null,
     time::{Duration, Instant},
+};
+use std::{
+    process::{Command, exit},
+    thread::JoinHandle,
 };
 // mod app;
 pub mod events;
@@ -81,6 +86,10 @@ fn main() {
 
 // Main app loop function using handle_key_input
 fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
+    // Shared status between main thread and worker thread
+    let status = Arc::new(Mutex::new(true));
+    let mut thread_handle: Option<JoinHandle<()>> = None;
+
     let mut mp_struct = Mainpage::new();
     app.set_state(app::State::Main);
     while *app.get_state() == app::State::Main {
@@ -92,6 +101,37 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
 
         // Render UI in a separate function
         render_main_page_ui(terminal, &mp_struct);
+
+        let mut done = status.lock().unwrap();
+
+        if *done {
+            if thread_handle.is_none() {
+                *done = false; // Reset status
+                let command = "sleep 2;";
+                let status_clone = Arc::clone(&status);
+
+                thread_handle = Some(thread::spawn(move || {
+                    run_bash_command(command);
+                    // println!("Here");
+                    let mut done = status_clone.lock().unwrap();
+                    *done = true;
+                }));
+            } else {
+                // Thread is done, just clear the handle — no join
+                thread_handle = None;
+                // println!("Thread finished, ready for next process.");
+            }
+        }
+    }
+    if let Some(handle) = thread_handle.take() {
+        match handle.join() {
+            Ok(_) => {
+                println!("Thread finished successfully.");
+            }
+            Err(e) => {
+                eprintln!("Thread panicked: {:?}", e);
+            }
+        }
     }
 }
 
@@ -188,7 +228,8 @@ fn task_creating(mp_struct: &mut Mainpage, app: &mut App) {
                     app.move_up_fsm();
                 }
                 Actions::Enter => {
-                    mp_struct.set_active_view(true);
+                    app.pass_template_to_task_list();
+                    mp_struct.set_create_window(false);
                 }
                 Actions::None => {
                     // Optionally handle the case where no key is pressed
@@ -200,5 +241,18 @@ fn task_creating(mp_struct: &mut Mainpage, app: &mut App) {
                 }
             }
         }
+    }
+}
+
+fn run_bash_command(command: &str) {
+    let status = Command::new("bash")
+        .arg("-c")
+        .arg(command)
+        .status()
+        .expect("Failed to execute command");
+
+    if !status.success() {
+        eprintln!("Command failed: {}", command);
+        exit(1); // Or handle failure appropriately
     }
 }

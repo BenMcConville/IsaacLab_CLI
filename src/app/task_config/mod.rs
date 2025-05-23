@@ -8,9 +8,9 @@ pub struct Task {
 impl Task {
     pub fn new() -> Self {
         Self {
-            task_name: String::from("a"),
-            environment: String::from("b"),
-            directory: String::from("c"),
+            task_name: String::from(""),
+            environment: String::from(""),
+            directory: String::from(""),
         }
     }
     pub fn get_task_name(&self) -> &str {

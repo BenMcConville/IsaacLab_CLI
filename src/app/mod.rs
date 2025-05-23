@@ -48,6 +48,14 @@ impl App {
         self.template_task = Some(temp_task);
     }
 
+    pub fn pass_template_to_task_list(&mut self) {
+        match self.template_task.take() {
+            Some(task) => self.add_task_to_queue(task),
+            None => (),
+        }
+        self.template_task = None;
+    }
+
     pub fn get_task_queue_names(&self) -> Vec<&str> {
         let mut task_queue_names: Vec<&str> = vec![];
         for task in &self.task_queue {
