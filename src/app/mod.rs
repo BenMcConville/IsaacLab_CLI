@@ -30,6 +30,17 @@ impl App {
             template_task: None,
         }
     }
+    pub fn task_queue_is_empty(&self) -> bool {
+        self.task_queue.is_empty()
+    }
+    pub fn pop_first_task(&mut self) -> Option<Task> {
+        if !self.task_queue.is_empty() {
+            Some(self.task_queue.remove(0))
+        } else {
+            None
+        }
+    }
+
     pub fn get_state(&self) -> &State {
         &self.state
     }
@@ -121,7 +132,8 @@ impl App {
         }
     }
 
-    pub fn pop_last_elem(&mut self) {
+    pub fn pop_last_elem_from_buffer(&mut self) {
+        // Used for backspace <----------
         // Copy out the enum (no borrow of self)!
         let creation_state = *self.get_creation_state();
 

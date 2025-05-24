@@ -105,17 +105,22 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
         let mut done = status.lock().unwrap();
 
         if *done {
-            if thread_handle.is_none() {
-                *done = false; // Reset status
-                let command = "sleep 2;";
-                let status_clone = Arc::clone(&status);
+            // Update mp_struct with new data
+            mp_struct.update_task_list(app.get_task_queue_names());
 
-                thread_handle = Some(thread::spawn(move || {
-                    run_bash_command(command);
-                    // println!("Here");
-                    let mut done = status_clone.lock().unwrap();
-                    *done = true;
-                }));
+            if thread_handle.is_none() && !app.task_queue_is_empty() {
+                if let Some(task) = app.pop_first_task() {
+                    *done = false; // Reset status
+                    let command = "echo test >> text.txt; sleep 10";
+                    let status_clone = Arc::clone(&status);
+
+                    thread_handle = Some(thread::spawn(move || {
+                        run_bash_command(command);
+                        // println!("Here");
+                        let mut done = status_clone.lock().unwrap();
+                        *done = true;
+                    }));
+                }
             } else {
                 // Thread is done, just clear the handle — no join
                 thread_handle = None;
@@ -225,7 +230,7 @@ fn task_creating(mp_struct: &mut Mainpage, app: &mut App) {
                     app.write_to_buffer(c);
                 }
                 Actions::Delete => {
-                    app.pop_last_elem();
+                    app.pop_last_elem_from_buffer();
                 }
                 Actions::Moveup => {
                     app.move_down_fsm();
