@@ -174,6 +174,12 @@ fn task_browsing(mp_struct: &mut Mainpage, app: &mut App) {
         }
         Some(Actions::Enter) => {
             mp_struct.set_active_view(true);
+            let name = mp_struct.get_current_task_selection_name().to_string(); // clone String
+            if let Some((env, dir)) = app.get_task_info(&name) {
+                mp_struct.set_temp_name(name);
+                mp_struct.set_temp_env(env);
+                mp_struct.set_temp_dir(dir);
+            }
         }
         Some(Actions::None) => {
             // Optionally handle the case where no key is pressed
@@ -229,6 +235,7 @@ fn task_creating(mp_struct: &mut Mainpage, app: &mut App) {
                 }
                 Actions::Enter => {
                     app.pass_template_to_task_list();
+                    mp_struct.update_task_list(app.get_task_queue_names());
                     mp_struct.set_create_window(false);
                 }
                 Actions::None => {

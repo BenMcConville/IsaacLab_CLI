@@ -47,6 +47,14 @@ impl App {
         let temp_task = Task::new();
         self.template_task = Some(temp_task);
     }
+    pub fn get_task_info(&self, task_name: &str) -> Option<(&str, &str)> {
+        for task in &self.task_queue {
+            if task.get_task_name() == task_name {
+                return Some((task.get_directory(), task.get_environment()));
+            }
+        }
+        None
+    }
 
     pub fn pass_template_to_task_list(&mut self) {
         match self.template_task.take() {

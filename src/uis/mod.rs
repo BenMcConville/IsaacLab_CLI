@@ -26,18 +26,14 @@ impl Mainpage {
         Self {
             task_selection: 0,
             active_view: false,
-            task_list: vec![
-                String::from("test01"),
-                String::from("test02"),
-                String::from("test03"),
-            ],
+            task_list: vec![],
             task_running: false,
             task_execution_location: String::from("LOCAL"),
             wandb: false,
             create_window: false,
-            create_task_name: String::from("Task"),
-            create_env: String::from("env01"),
-            create_dir: String::from("~/dir01"),
+            create_task_name: String::from(""),
+            create_env: String::from(""),
+            create_dir: String::from(""),
         }
     }
     pub fn get_task_queue_names(&self) -> Vec<&str> {
@@ -62,6 +58,9 @@ impl Mainpage {
         self.create_env = String::from(env_name);
         self.create_dir = String::from(dir);
     }
+    pub fn get_current_task_selection_name(&self) -> &str {
+        &self.task_list[self.task_selection]
+    }
 
     pub fn get_temp_name(&self) -> &str {
         &self.create_task_name
@@ -72,8 +71,25 @@ impl Mainpage {
     pub fn get_temp_dir(&self) -> &str {
         &self.create_dir
     }
+    pub fn set_temp_name<S: Into<String>>(&mut self, name: S) {
+        self.create_task_name = name.into();
+    }
+
+    pub fn set_temp_env<S: Into<String>>(&mut self, env: S) {
+        self.create_env = env.into();
+    }
+
+    pub fn set_temp_dir<S: Into<String>>(&mut self, dir: S) {
+        self.create_dir = dir.into();
+    }
     pub fn get_task_running(&self) -> &bool {
         &self.task_running
+    }
+    pub fn update_task_list(&mut self, task_list: Vec<&str>) {
+        self.task_list.clear();
+        for task_name in task_list {
+            self.task_list.push(String::from(task_name));
+        }
     }
     pub fn get_active_view(&self) -> &bool {
         &self.active_view
@@ -235,7 +251,7 @@ pub fn render_main_page_ui<B: ratatui::backend::Backend>(
                 )
                 .split(upper_right_chunk[1]);
 
-            let task_name_paragraph = Paragraph::new("  Task02").block(
+            let task_name_paragraph = Paragraph::new(mp_struct.get_temp_name()).block(
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(ratatui::widgets::BorderType::Rounded)
@@ -243,7 +259,7 @@ pub fn render_main_page_ui<B: ratatui::backend::Backend>(
             );
             f.render_widget(task_name_paragraph, upper_right_leck_chunk[1]);
 
-            let environment_name_paragraph = Paragraph::new("   Isaac-Push-vBen").block(
+            let environment_name_paragraph = Paragraph::new(mp_struct.get_temp_env()).block(
                 Block::default()
                     .borders(Borders::ALL)
                     .border_type(ratatui::widgets::BorderType::Rounded)
