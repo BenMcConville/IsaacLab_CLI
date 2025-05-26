@@ -33,7 +33,7 @@ use std::{
 pub mod events;
 use events::{Actions, handle_key_input};
 pub mod uis;
-use uis::{Mainpage, render_main_page_ui};
+use uis::{Mainpage, main_page::render_main_page_ui, yaml_page::render_yaml_page_ui};
 pub mod app;
 use app::{App, State};
 // use event::{Event, EventHandler};
@@ -46,16 +46,16 @@ struct Config {
 
 fn main() {
     // Example 1: Deserialize into a Config struct
-    match read_yaml::<Config>("./src/config.yaml") {
-        Ok(config) => {
-            println!("Task: {}", config.current_task);
-            println!("Directory: {}", config.current_dir);
-        }
-        Err(e) => eprintln!("Error reading YAML file: {}", e),
-    }
+    // match read_yaml::<Config>("/Users/bmcc/Desktop/Test/config.yaml") {
+    //     Ok(config) => {
+    //         println!("Task: {}", config.current_task);
+    //         println!("Directory: {}", config.current_dir);
+    //     }
+    //     Err(e) => eprintln!("Error reading YAML file: {}", e),
+    // }
 
     // // Example 2: Deserialize into a serde_yaml::Value
-    // match read_yaml::<Value>("./src/config.yaml") {
+    // match read_yaml::<Value>("/Users/bmcc/Desktop/Test/config.yaml") {
     //     Ok(value) => {
     //         println!("YAML Content: {:#?}", value);
     //     }
