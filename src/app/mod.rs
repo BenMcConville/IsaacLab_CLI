@@ -1,4 +1,5 @@
 pub mod task_config;
+use serde_yaml::{Value, from_str};
 use task_config::Task;
 #[derive(PartialEq, Debug)]
 pub enum State {
@@ -39,6 +40,11 @@ impl App {
             Some(self.task_queue.remove(0))
         } else {
             None
+        }
+    }
+    pub fn set_yaml(&mut self, yaml: Value) {
+        if let Some(ref mut task) = self.template_task {
+            task.set_yaml(yaml);
         }
     }
 

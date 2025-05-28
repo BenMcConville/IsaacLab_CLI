@@ -11,7 +11,7 @@ use ratatui::{
     text::{Line, Span, Text},
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_yaml::{Value, from_str};
 use std::collections::HashMap;
 use std::{
@@ -61,6 +61,10 @@ impl Mainpage {
             yaml_update_text: String::from(""),
         }
     }
+    pub fn take_yaml(&mut self) -> Option<Value> {
+        self.temp_yaml.take()
+    }
+
     // ------------ Update yaml ----------------
     pub fn write_buff_to_yaml(&mut self) {
         match &mut self.temp_yaml {

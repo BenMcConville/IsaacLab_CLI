@@ -1,24 +1,110 @@
 use super::Mainpage;
 use ratatui::{
     Terminal,
-    backend::{self, CrosstermBackend},
+    backend::CrosstermBackend,
     layout::Alignment,
     layout::{Constraint, Direction, Layout, Rect},
-    prelude::Backend,
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
 };
-use serde_yaml::Value; // Make sure to import Value
+use serde_yaml::Value;
+use std::fmt::Write;
 
-// Helper function to convert Value to lines for display
+// Helper function to convert Value to lines for display,
+// only showing explicit key-value pairs (scalars).
 fn yaml_to_lines(yaml_value: &Value) -> Vec<String> {
-    // Pretty-print the YAML value to a string
-    serde_yaml::to_string(yaml_value)
-        .unwrap_or_else(|_| "Error formatting YAML".to_string())
-        .lines()
-        .map(|s| s.to_string())
-        .collect()
+    let mut lines = Vec::new();
+    traverse_yaml(yaml_value, &mut lines, 0);
+    lines
+}
+
+fn traverse_yaml(value: &Value, lines: &mut Vec<String>, indent_level: usize) {
+    let indent = "    ".repeat(indent_level); // 4 spaces per indent level
+
+    match value {
+        Value::Mapping(map) => {
+            for (key, val) in map {
+                let key_str = key.as_str().unwrap_or_default();
+                match val {
+                    Value::String(_) | Value::Number(_) | Value::Bool(_) | Value::Null => {
+                        // If the value is a scalar, format and add the key-value pair.
+                        let mut line = String::new();
+                        write!(&mut line, "{indent}{key_str}: ").unwrap();
+                        match serde_yaml::to_string(val) {
+                            Ok(s) => {
+                                line.push_str(s.trim_end());
+                            }
+                            Err(_) => {
+                                line.push_str(&format!("{:?}", val));
+                            }
+                        }
+                        lines.push(line);
+                    }
+                    Value::Tagged(tagged_value) => {
+                        // If it's a Tagged value, we need to check what's inside.
+                        // We'll recurse into the tagged value to find its scalar components.
+                        // We don't print the key itself, as the primary goal is scalar display.
+                        // However, if the tagged value *itself* is a scalar, we might want to print it.
+                        // For simplicity, we'll just recurse, which means we won't print the tag,
+                        // but we will get to any scalar children.
+                        traverse_yaml(&tagged_value.value, lines, indent_level + 1);
+                    }
+                    Value::Mapping(_) | Value::Sequence(_) => {
+                        // Do not add a line for 'config:' or 'test:' if they contain further structure.
+                        // Instead, just recurse into their children to find simple key-value pairs within.
+                        traverse_yaml(val, lines, indent_level + 1);
+                    }
+                }
+            }
+        }
+        Value::Sequence(sequence) => {
+            for item in sequence {
+                match item {
+                    Value::String(_) | Value::Number(_) | Value::Bool(_) | Value::Null => {
+                        // If a sequence item is a scalar, display it with a hyphen.
+                        let mut line = String::new();
+                        write!(&mut line, "{indent}- ").unwrap();
+                        match serde_yaml::to_string(item) {
+                            Ok(s) => {
+                                line.push_str(s.trim_end());
+                            }
+                            Err(_) => {
+                                line.push_str(&format!("{:?}", item));
+                            }
+                        }
+                        lines.push(line);
+                    }
+                    Value::Tagged(tagged_item) => {
+                        // Recurse into tagged sequence items
+                        traverse_yaml(&tagged_item.value, lines, indent_level + 1);
+                    }
+                    Value::Mapping(_) | Value::Sequence(_) => {
+                        // If a sequence item is a Mapping or Sequence, skip showing the hyphen for the parent,
+                        // and recurse into the child to display its scalar children.
+                        traverse_yaml(item, lines, indent_level + 1);
+                    }
+                }
+            }
+        }
+        // Handle the top-level value if it's a scalar or tagged scalar.
+        Value::String(_) | Value::Number(_) | Value::Bool(_) | Value::Null => {
+            if indent_level == 0 {
+                lines.push(
+                    serde_yaml::to_string(value)
+                        .unwrap_or_else(|_| "Error formatting scalar".to_string())
+                        .trim_end()
+                        .to_string(),
+                );
+            }
+        }
+        Value::Tagged(tagged_value) => {
+            // If the top-level value is tagged, recurse into its inner value.
+            if indent_level == 0 {
+                traverse_yaml(&tagged_value.value, lines, indent_level); // Keep same indent level for inner value
+            }
+        }
+    }
 }
 
 pub fn render_yaml_page_ui<B: ratatui::backend::Backend>(
@@ -27,7 +113,7 @@ pub fn render_yaml_page_ui<B: ratatui::backend::Backend>(
 ) {
     terminal
         .draw(|f| {
-            let size = f.size();
+            let size = f.area(); // Updated from f.size()
 
             let layout = Layout::default()
                 .direction(Direction::Horizontal)
@@ -113,11 +199,11 @@ pub fn render_yaml_page_ui<B: ratatui::backend::Backend>(
 
                 // Render the background clear for the popup
                 f.render_widget(Clear, popup_area);
-                // Render the popup block - PASS A REFERENCE HERE!
-                f.render_widget(&popup_block, popup_area); // <-- CHANGE HERE
+                // Render the popup block
+                f.render_widget(&popup_block, popup_area);
 
                 // Get the inner area of the block
-                let inner_area = popup_block.inner(popup_area); // This now works because popup_block was only borrowed
+                let inner_area = popup_block.inner(popup_area);
 
                 // Create the paragraph widget for the text content
                 let text = Paragraph::new(mp_struct.yaml_update_text.as_str())

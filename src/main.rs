@@ -13,6 +13,7 @@ use ratatui::{
     text,
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
+use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::{
@@ -88,15 +89,22 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
             if thread_handle.is_none() && !app.task_queue_is_empty() {
                 if let Some(task) = app.pop_first_task() {
                     *done = false; // Reset status
-                    let command = "echo test >> text.txt; sleep 10";
-                    let status_clone = Arc::clone(&status);
+                    match write_yaml(task.get_directory(), task.get_yaml()) {
+                        Ok(_) => {
+                            let command = "echo test >> text.txt; sleep 10";
+                            let status_clone = Arc::clone(&status);
 
-                    thread_handle = Some(thread::spawn(move || {
-                        run_bash_command(command);
-                        // println!("Here");
-                        let mut done = status_clone.lock().unwrap();
-                        *done = true;
-                    }));
+                            thread_handle = Some(thread::spawn(move || {
+                                run_bash_command(command);
+                                // println!("Here");
+                                let mut done = status_clone.lock().unwrap();
+                                *done = true;
+                            }));
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to write YAML file: {:?}", e);
+                        }
+                    }
                 }
             } else {
                 // Thread is done, just clear the handle — no join
@@ -208,10 +216,10 @@ fn task_creating(mp_struct: &mut Mainpage, app: &mut App) {
                         mp_struct.set_yaml_mode(false);
                     }
                 }
-                Actions::Left => {
+                Actions::Right => {
                     mp_struct.increment_yaml_selection();
                 }
-                Actions::Right => {
+                Actions::Left => {
                     mp_struct.decrement_yaml_selection();
                 }
 
@@ -229,6 +237,10 @@ fn task_creating(mp_struct: &mut Mainpage, app: &mut App) {
                         mp_struct.write_buff_to_yaml();
                         mp_struct.toggle_update_yaml_selection()
                     } else {
+                        match mp_struct.take_yaml() {
+                            Some(yaml) => app.set_yaml(yaml),
+                            None => {}
+                        }
                         app.pass_template_to_task_list();
                         mp_struct.update_task_list(app.get_task_queue_names());
                         mp_struct.set_create_window(false);
@@ -258,4 +270,23 @@ fn run_bash_command(command: &str) {
         eprintln!("Command failed: {}", command);
         exit(1); // Or handle failure appropriately
     }
+}
+
+// Write a generic type T to a YAML file
+fn write_yaml<T>(file_path: &str, data: &T) -> Result<(), Box<dyn std::error::Error>>
+where
+    T: Serialize, // The type T must be serializable
+{
+    // Serialize the data into a YAML string
+    let yaml_string = serde_yaml::to_string(data)?;
+
+    // Open the file in write mode. If the file doesn't exist, it will be created.
+    // If it exists, its content will be truncated (overwritten).
+    let path = Path::new(file_path);
+    let mut file = File::create(path)?;
+
+    // Write the YAML string to the file
+    file.write_all(yaml_string.as_bytes())?;
+
+    Ok(())
 }
