@@ -1,5 +1,17 @@
 pub mod main_page;
+use main_page::render_main_page_ui;
 pub mod yaml_page;
+use ratatui::{
+    Terminal,
+    backend::{self, CrosstermBackend},
+    layout::Alignment,
+    layout::{Constraint, Direction, Layout, Rect},
+    prelude::Backend,
+    style::{Color, Modifier, Style},
+    text::{Line, Span, Text},
+    widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
+};
+use yaml_page::render_yaml_page_ui;
 
 pub struct Mainpage {
     task_selection: usize,
@@ -9,6 +21,7 @@ pub struct Mainpage {
     task_execution_location: String,
     wandb: bool,
     create_window: bool,
+    yaml_mode: bool,
     create_task_name: String,
     create_env: String,
     create_dir: String,
@@ -21,6 +34,7 @@ impl Mainpage {
             task_list: vec![],
             task_running: false,
             task_execution_location: String::from("LOCAL"),
+            yaml_mode: false,
             wandb: false,
             create_window: false,
             create_task_name: String::from(""),
@@ -52,6 +66,12 @@ impl Mainpage {
     }
     pub fn get_current_task_selection_name(&self) -> &str {
         &self.task_list[self.task_selection]
+    }
+    pub fn get_yaml_mode(&self) -> &bool {
+        &self.yaml_mode
+    }
+    pub fn set_yaml_mode(&mut self, yaml_mode: bool) {
+        self.yaml_mode = yaml_mode;
     }
 
     pub fn get_temp_name(&self) -> &str {
@@ -117,5 +137,13 @@ impl Mainpage {
                 self.task_selection -= 1;
             }
         }
+    }
+}
+
+pub fn render_page<B: ratatui::backend::Backend>(terminal: &mut Terminal<B>, mp_struct: &Mainpage) {
+    if *mp_struct.get_yaml_mode() {
+        render_yaml_page_ui(terminal, mp_struct);
+    } else {
+        render_main_page_ui(terminal, mp_struct);
     }
 }

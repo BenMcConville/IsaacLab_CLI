@@ -11,6 +11,7 @@ pub enum CreationState {
     Taskname,
     Envname,
     Dir,
+    Yaml,
     Null,
 }
 
@@ -118,16 +119,21 @@ impl App {
         match self.creation_state {
             CreationState::Taskname => self.creation_state = CreationState::Envname,
             CreationState::Envname => self.creation_state = CreationState::Dir,
-            CreationState::Dir => self.creation_state = CreationState::Taskname,
+            CreationState::Dir => self.creation_state = CreationState::Yaml,
+            CreationState::Yaml => self.creation_state = CreationState::Taskname,
             _ => (),
         }
+    }
+    pub fn is_yaml_state(&self) -> bool {
+        self.creation_state == CreationState::Yaml
     }
     pub fn move_up_fsm(&mut self) {
         // Update depending on res
         match self.creation_state {
             CreationState::Taskname => self.creation_state = CreationState::Envname,
             CreationState::Envname => self.creation_state = CreationState::Dir,
-            CreationState::Dir => self.creation_state = CreationState::Taskname,
+            CreationState::Dir => self.creation_state = CreationState::Yaml,
+            CreationState::Yaml => self.creation_state = CreationState::Taskname,
             _ => (),
         }
     }
