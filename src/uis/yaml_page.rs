@@ -11,8 +11,7 @@ use ratatui::{
 use serde_yaml::Value;
 use std::fmt::Write;
 
-// Helper function to convert Value to lines for display,
-// only showing explicit key-value pairs (scalars).
+// Helper function to convert Value to lines for display.
 fn yaml_to_lines(yaml_value: &Value) -> Vec<String> {
     let mut lines = Vec::new();
     traverse_yaml(yaml_value, &mut lines, 0);
@@ -26,10 +25,11 @@ fn traverse_yaml(value: &Value, lines: &mut Vec<String>, indent_level: usize) {
         Value::Mapping(map) => {
             for (key, val) in map {
                 let key_str = key.as_str().unwrap_or_default();
+                let mut line = String::new();
+
                 match val {
                     Value::String(_) | Value::Number(_) | Value::Bool(_) | Value::Null => {
                         // If the value is a scalar, format and add the key-value pair.
-                        let mut line = String::new();
                         write!(&mut line, "{indent}{key_str}: ").unwrap();
                         match serde_yaml::to_string(val) {
                             Ok(s) => {
@@ -41,29 +41,61 @@ fn traverse_yaml(value: &Value, lines: &mut Vec<String>, indent_level: usize) {
                         }
                         lines.push(line);
                     }
-                    Value::Tagged(tagged_value) => {
-                        // If it's a Tagged value, we need to check what's inside.
-                        // We'll recurse into the tagged value to find its scalar components.
-                        // We don't print the key itself, as the primary goal is scalar display.
-                        // However, if the tagged value *itself* is a scalar, we might want to print it.
-                        // For simplicity, we'll just recurse, which means we won't print the tag,
-                        // but we will get to any scalar children.
-                        traverse_yaml(&tagged_value.value, lines, indent_level + 1);
+                    Value::Sequence(sequence) => {
+                        // If the value is a sequence, print the key and then
+                        // recurse for each item with increased indent.
+                        write!(&mut line, "{indent}{key_str}:").unwrap(); // Add the key for the sequence
+                        lines.push(line);
+                        for item in sequence {
+                            traverse_yaml(item, lines, indent_level + 1);
+                        }
                     }
-                    Value::Mapping(_) | Value::Sequence(_) => {
-                        // Do not add a line for 'config:' or 'test:' if they contain further structure.
-                        // Instead, just recurse into their children to find simple key-value pairs within.
+                    Value::Mapping(_) => {
+                        // If the value is a nested map, you explicitly want to skip adding
+                        // a line for this key. Just recurse.
                         traverse_yaml(val, lines, indent_level + 1);
+                    }
+                    Value::Tagged(tagged_value) => {
+                        // For a tagged value, check its inner type.
+                        match &tagged_value.value {
+                            Value::String(_) | Value::Number(_) | Value::Bool(_) | Value::Null => {
+                                // If the inner tagged value is scalar, print the key and the scalar.
+                                write!(&mut line, "{indent}{key_str}: ").unwrap();
+                                match serde_yaml::to_string(val) {
+                                    // Use `val` here to get the full tagged representation if needed
+                                    Ok(s) => line.push_str(s.trim_end()),
+                                    Err(_) => line.push_str(&format!("{:?}", val)),
+                                }
+                                lines.push(line);
+                            }
+                            Value::Sequence(_) => {
+                                // If the inner tagged value is a sequence, print the key and then recurse.
+                                write!(&mut line, "{indent}{key_str}:").unwrap();
+                                lines.push(line);
+                                traverse_yaml(&tagged_value.value, lines, indent_level + 1);
+                            }
+                            Value::Mapping(_) => {
+                                // If the inner tagged value is a mapping, skip the key and recurse.
+                                traverse_yaml(&tagged_value.value, lines, indent_level + 1);
+                            }
+                            // FIX: Add this branch to handle nested tagged values
+                            Value::Tagged(_) => {
+                                write!(&mut line, "{indent}{key_str}:").unwrap(); // Print key if it's a tagged complex type
+                                lines.push(line);
+                                traverse_yaml(&tagged_value.value, lines, indent_level + 1);
+                            }
+                        }
                     }
                 }
             }
         }
         Value::Sequence(sequence) => {
+            // This case handles sequences that are either top-level or elements within another sequence.
             for item in sequence {
+                let mut line = String::new();
                 match item {
                     Value::String(_) | Value::Number(_) | Value::Bool(_) | Value::Null => {
                         // If a sequence item is a scalar, display it with a hyphen.
-                        let mut line = String::new();
                         write!(&mut line, "{indent}- ").unwrap();
                         match serde_yaml::to_string(item) {
                             Ok(s) => {
@@ -75,19 +107,36 @@ fn traverse_yaml(value: &Value, lines: &mut Vec<String>, indent_level: usize) {
                         }
                         lines.push(line);
                     }
-                    Value::Tagged(tagged_item) => {
-                        // Recurse into tagged sequence items
-                        traverse_yaml(&tagged_item.value, lines, indent_level + 1);
-                    }
                     Value::Mapping(_) | Value::Sequence(_) => {
                         // If a sequence item is a Mapping or Sequence, skip showing the hyphen for the parent,
                         // and recurse into the child to display its scalar children.
                         traverse_yaml(item, lines, indent_level + 1);
                     }
+                    Value::Tagged(tagged_item) => {
+                        // Handle tagged items within a sequence.
+                        match &tagged_item.value {
+                            Value::String(_) | Value::Number(_) | Value::Bool(_) | Value::Null => {
+                                // If the inner tagged value is scalar, display with hyphen.
+                                write!(&mut line, "{indent}- ").unwrap();
+                                match serde_yaml::to_string(item) {
+                                    Ok(s) => line.push_str(s.trim_end()),
+                                    Err(_) => line.push_str(&format!("{:?}", item)),
+                                }
+                                lines.push(line);
+                            }
+                            // FIX: Add this branch to handle nested tagged values within a sequence
+                            Value::Tagged(_) | Value::Mapping(_) | Value::Sequence(_) => {
+                                // If complex tagged item, just recurse.
+                                // If you want a hyphen before the nested structure here, add:
+                                // write!(&mut line, "{indent}- ").unwrap(); lines.push(line);
+                                traverse_yaml(&tagged_item.value, lines, indent_level + 1);
+                            }
+                        }
+                    }
                 }
             }
         }
-        // Handle the top-level value if it's a scalar or tagged scalar.
+        // Handle the top-level value if it's a scalar.
         Value::String(_) | Value::Number(_) | Value::Bool(_) | Value::Null => {
             if indent_level == 0 {
                 lines.push(
@@ -113,7 +162,7 @@ pub fn render_yaml_page_ui<B: ratatui::backend::Backend>(
 ) {
     terminal
         .draw(|f| {
-            let size = f.area(); // Updated from f.size()
+            let size = f.area();
 
             let layout = Layout::default()
                 .direction(Direction::Horizontal)
