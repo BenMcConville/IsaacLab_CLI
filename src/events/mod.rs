@@ -7,6 +7,9 @@ pub enum Actions {
     Createtask,
     Moveup,
     Movedown,
+    Left,
+    Tab,
+    Right,
     None,
     Delete,
 }
@@ -27,6 +30,9 @@ pub fn traverse_with_keys(timeout: Duration) -> Option<Actions> {
                 KeyCode::Char('c') => return Some(Actions::Createtask), // Quit if 'q' is pressed
                 KeyCode::Up => return Some(Actions::Moveup),
                 KeyCode::Down => return Some(Actions::Movedown),
+                KeyCode::Left => return Some(Actions::Left),
+                KeyCode::Right => return Some(Actions::Right),
+                KeyCode::Tab => return Some(Actions::Tab),
                 KeyCode::Enter => return Some(Actions::Enter),
                 _ => {} // Handle other keys if needed (e.g., return None for non-'q' keys)
             }
@@ -46,9 +52,12 @@ pub fn read_key_strokes(timeout: Duration) -> Option<Actions> {
                 KeyCode::Char(c) => return Some(Actions::Char(c)),
                 KeyCode::Up => return Some(Actions::Moveup),
                 KeyCode::Down => return Some(Actions::Movedown),
+                KeyCode::Left => return Some(Actions::Left),
+                KeyCode::Right => return Some(Actions::Right),
                 KeyCode::Enter => return Some(Actions::Enter),
                 KeyCode::Esc => return Some(Actions::Quit),
                 KeyCode::Backspace => return Some(Actions::Delete),
+                KeyCode::Tab => return Some(Actions::Tab),
                 _ => {} // Handle other keys if needed (e.g., return None for non-'q' keys)
             }
         } else {

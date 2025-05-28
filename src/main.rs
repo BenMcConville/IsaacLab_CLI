@@ -13,8 +13,6 @@ use ratatui::{
     text,
     widgets::{Block, Borders, List, ListItem, Paragraph},
 };
-use serde::Deserialize;
-use serde_yaml::{Value, from_str};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::{
@@ -38,50 +36,8 @@ pub mod app;
 use app::{App, State};
 // use event::{Event, EventHandler};
 //
-#[derive(Debug, Deserialize)]
-struct Config {
-    current_task: String,
-    current_dir: String,
-}
 
 fn main() {
-    // Example 1: Deserialize into a Config struct
-    // match read_yaml::<Config>("/Users/bmcc/Desktop/Test/config.yaml") {
-    //     Ok(config) => {
-    //         println!("Task: {}", config.current_task);
-    //         println!("Directory: {}", config.current_dir);
-    //     }
-    //     Err(e) => eprintln!("Error reading YAML file: {}", e),
-    // }
-
-    // // Example 2: Deserialize into a serde_yaml::Value
-    let mut yaml_data = match read_yaml::<Value>("/Users/bmcc/Desktop/Test/config.yaml") {
-        Ok(value) => Some(value),
-        Err(e) => None,
-    };
-
-    let mut add_status_updater = |v: &mut Value| {
-        if let Value::Mapping(map) = v {
-            if map.contains_key("Task") {
-                // Changed from "config"
-                map.insert(
-                    Value::String("Task".to_string()),
-                    Value::String("active".to_string()),
-                );
-            }
-        }
-    };
-    match yaml_data {
-        Some(mut data) => {
-            update_yaml_elements(&mut data, &mut add_status_updater);
-            println!(
-                "\nYAML after adding status field:\n{}",
-                serde_yaml::to_string(&data).unwrap()
-            );
-        }
-        None => eprintln!("Error reading YAML file"),
-    }
-
     let mut app = App::new_app();
 
     // Stdout is the output of the termianl and if used io::stdout().flush() all entries in terminal
@@ -121,7 +77,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
         }
 
         // Render UI in a separate function
-        render_page(terminal, &mp_struct);
+        render_page(terminal, &mut mp_struct);
 
         let mut done = status.lock().unwrap();
 
@@ -160,25 +116,6 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, app: &mut App) {
             }
         }
     }
-}
-
-// Read YAML file into a generic type T
-fn read_yaml<T>(file_path: &str) -> Result<T, Box<dyn std::error::Error>>
-where
-    T: for<'de> Deserialize<'de>, // Deserializes for any lifetime
-{
-    // Open the YAML file
-    let path = Path::new(file_path);
-    let mut file = File::open(path)?;
-
-    // Read the contents of the file into a string
-    let mut contents = String::new();
-    file.read_to_string(&mut contents)?;
-
-    // Deserialize the YAML string into the specified type T
-    let result: T = from_str(&contents)?; // contents is a String, so it lives long enough
-
-    Ok(result)
 }
 
 fn task_browsing(mp_struct: &mut Mainpage, app: &mut App) {
@@ -249,11 +186,20 @@ fn task_creating(mp_struct: &mut Mainpage, app: &mut App) {
                     mp_struct.set_create_window(false);
                 }
                 Actions::Char(c) => {
-                    app.write_to_buffer(c);
+                    if *mp_struct.get_yaml_mode() {
+                        mp_struct.write_to_yaml_buffer(c);
+                    } else {
+                        app.write_to_buffer(c);
+                    }
                 }
                 Actions::Delete => {
-                    app.pop_last_elem_from_buffer();
+                    if *mp_struct.get_yaml_mode() {
+                        mp_struct.backspace_yaml_buffer();
+                    } else {
+                        app.pop_last_elem_from_buffer();
+                    }
                 }
+                Actions::Tab => mp_struct.toggle_update_yaml_selection(),
                 Actions::Moveup => {
                     app.move_down_fsm();
                     if app.is_yaml_state() {
@@ -262,6 +208,13 @@ fn task_creating(mp_struct: &mut Mainpage, app: &mut App) {
                         mp_struct.set_yaml_mode(false);
                     }
                 }
+                Actions::Left => {
+                    mp_struct.increment_yaml_selection();
+                }
+                Actions::Right => {
+                    mp_struct.decrement_yaml_selection();
+                }
+
                 Actions::Movedown => {
                     app.move_up_fsm();
                     if app.is_yaml_state() {
@@ -271,9 +224,16 @@ fn task_creating(mp_struct: &mut Mainpage, app: &mut App) {
                     }
                 }
                 Actions::Enter => {
-                    app.pass_template_to_task_list();
-                    mp_struct.update_task_list(app.get_task_queue_names());
-                    mp_struct.set_create_window(false);
+                    if *mp_struct.get_yaml_mode() {
+                        // mp_struct.apply_selected_yaml_update();
+                        app.pass_template_to_task_list();
+                        mp_struct.update_task_list(app.get_task_queue_names());
+                        mp_struct.set_create_window(false);
+                    } else {
+                        app.pass_template_to_task_list();
+                        mp_struct.update_task_list(app.get_task_queue_names());
+                        mp_struct.set_create_window(false);
+                    }
                 }
                 Actions::None => {
                     // Optionally handle the case where no key is pressed
@@ -298,34 +258,5 @@ fn run_bash_command(command: &str) {
     if !status.success() {
         eprintln!("Command failed: {}", command);
         exit(1); // Or handle failure appropriately
-    }
-}
-
-pub fn update_yaml_elements<F>(value: &mut Value, updater: &mut F)
-where
-    F: FnMut(&mut Value),
-{
-    match value {
-        Value::Mapping(map) => {
-            // Apply updater to each value in the map
-            for (_, v) in map.iter_mut() {
-                updater(v);
-                // Recursively call for nested values
-                update_yaml_elements(v, updater);
-            }
-        }
-        Value::Sequence(seq) => {
-            // Apply updater to each item in the sequence
-            for item in seq.iter_mut() {
-                updater(item);
-                // Recursively call for nested items
-                update_yaml_elements(item, updater);
-            }
-        }
-        // For other types (String, Number, Bool, Null), apply updater directly.
-        // These types do not contain further nested Value types, so no recursion is needed.
-        _ => {
-            updater(value);
-        }
     }
 }
