@@ -13,6 +13,7 @@ use ratatui::{
 };
 use serde::Deserialize;
 use serde_yaml::{Value, from_str};
+use std::collections::HashMap;
 use std::{
     fs::File,
     io::{self, Read, Write},
@@ -57,20 +58,88 @@ impl Mainpage {
             temp_yaml: None,
             yaml_selection: 0,
             update_yaml_selection: false,
-            yaml_update_text: String::from("Test Text"),
+            yaml_update_text: String::from(""),
         }
     }
+    // ------------ Update yaml ----------------
+    pub fn write_buff_to_yaml(&mut self) {
+        match &mut self.temp_yaml {
+            Some(yaml) => {
+                // 'yaml' is &mut Value
+                // Get the flattened key based on the current selection.
+                // get_flattened_key_by_index takes &Value, which `yaml` already is.
+                let key = get_flattened_key_by_index(yaml, self.yaml_selection);
+
+                match key {
+                    Some(key_str) => {
+                        // The `set_nested_value_mut` function takes ownership of the String for the new value.
+                        // So, we need to clone `self.yaml_update_text` to pass it.
+                        let result =
+                            set_nested_value_mut(yaml, &key_str, self.yaml_update_text.clone());
+
+                        // Handle the result of the update operation
+                        match result {
+                            Ok(_) => {
+                                // println!("Successfully updated key: {}", key_str);
+                                // You might want to clear `yaml_update_text` here or reset `update_yaml_selection`
+                                // self.yaml_update_text.clear();
+                                // self.update_yaml_selection = false;
+                            }
+                            Err(e) => {
+                                eprintln!("Error updating YAML for key {}: {}", key_str, e);
+                            }
+                        }
+                    }
+                    None => {
+                        println!("No key found at index {}.", self.yaml_selection);
+                    }
+                }
+            }
+            None => {
+                println!("Cannot update YAML: temp_yaml is not loaded.");
+            }
+        }
+        self.yaml_update_text = String::from("");
+    }
+
+    // -------------------------------------------
+
     /// Helper to get the number of displayable lines from the YAML.
     /// This is equivalent to the `yaml_to_lines` helper from the previous response's example.
+    // fn get_yaml_line_count(&self) -> usize {
+    //     if let Some(yaml_value) = &self.temp_yaml {
+    //         // Convert to string and count lines
+    //         serde_yaml::to_string(yaml_value)
+    //             .unwrap_or_else(|_| "".to_string()) // Handle error gracefully by returning empty string
+    //             .lines()
+    //             .count()
+    //     } else {
+    //         0 // No YAML data means 0 lines
+    //     }
+    // }
     fn get_yaml_line_count(&self) -> usize {
         if let Some(yaml_value) = &self.temp_yaml {
-            // Convert to string and count lines
-            serde_yaml::to_string(yaml_value)
-                .unwrap_or_else(|_| "".to_string()) // Handle error gracefully by returning empty string
-                .lines()
-                .count()
+            match yaml_value {
+                Value::Mapping(root_map) => {
+                    // If the root is a map, we iterate through its *values*.
+                    // We DO NOT count the `root_map.len()` here.
+                    // Instead, we sum the counts from what each value contains.
+                    let mut total_nested_count = 0;
+                    for (_key, nested_value) in root_map {
+                        // Call the helper to count all key-value pairs found within this nested value.
+                        total_nested_count += count_all_found_key_value_pairs(nested_value);
+                    }
+                    total_nested_count
+                }
+                _ => {
+                    // If the root is not a map (e.g., a sequence or a scalar),
+                    // there are no "nested" key-value pairs of the type you're asking for.
+                    // For example, if the YAML was just "foo: bar", "foo" would be top-level.
+                    0
+                }
+            }
         } else {
-            0 // No YAML data means 0 lines
+            0 // No YAML data means 0 key-value pairs
         }
     }
     pub fn write_to_yaml_buffer(&mut self, c: char) {
@@ -314,4 +383,123 @@ where
     let result: T = from_str(&contents)?; // contents is a String, so it lives long enough
 
     Ok(result)
+}
+fn flatten_value(value: &Value) -> Vec<(String, Value)> {
+    let mut flat_vec = Vec::new(); // Changed to Vec
+    flatten_recursive(value, String::new(), &mut flat_vec);
+    flat_vec
+}
+
+// Recursive helper function to traverse the Value and build the flattened vector
+// Now takes `&mut Vec<(String, Value)>` for `flat_vec`
+fn flatten_recursive(value: &Value, prefix: String, flat_vec: &mut Vec<(String, Value)>) {
+    if let Some(map) = value.as_mapping() {
+        for (key_val, val_ref) in map {
+            let key_str = if let Some(s) = key_val.as_str() {
+                s.to_string()
+            } else {
+                serde_yaml::to_string(key_val)
+                    .expect("Failed to serialize YAML key to string for flattening")
+                    .trim_end_matches('\n')
+                    .to_string()
+            };
+
+            let new_prefix = if prefix.is_empty() {
+                key_str
+            } else {
+                format!("{}.{}", prefix, key_str)
+            };
+            flatten_recursive(val_ref, new_prefix, flat_vec); // Pass the vec reference
+        }
+    } else if let Some(arr) = value.as_sequence() {
+        flat_vec.push((prefix, Value::Sequence(arr.clone()))); // Push to vec
+    } else {
+        flat_vec.push((prefix, value.clone())); // Push to vec
+    }
+}
+
+/// Flattens a `serde_yaml::Value` and returns the key at the specified index
+/// from the original-order flattened key-value pairs.
+///
+/// Takes a reference to `serde_yaml::Value`.
+/// Returns `None` if the index is out of bounds or the Value cannot be flattened
+/// into key-value pairs.
+fn get_flattened_key_by_index(yaml_value: &Value, index: usize) -> Option<String> {
+    // 1. Flatten the Value into a Vec, preserving order
+    let kv_pairs = flatten_value(yaml_value); // No longer a HashMap, directly a Vec
+
+    // 2. The vector is already in the order they appeared, so NO SORTING NEEDED
+    // kv_pairs.sort_by(|(key1, _), (key2, _)| key1.cmp(key2)); // <--- REMOVE THIS LINE!
+
+    // 3. Try to get the key at the specified index
+    kv_pairs.get(index).map(|(key, _)| key.clone())
+}
+fn set_nested_value_mut(
+    root: &mut Value,
+    flattened_key: &str,
+    new_string_value: String,
+) -> Result<(), String> {
+    let path_segments: Vec<&str> = flattened_key.split('.').collect();
+
+    if path_segments.is_empty() {
+        // If the flattened key is empty, it means we are trying to replace the root.
+        *root = Value::String(new_string_value);
+        return Ok(());
+    }
+
+    let mut current_val = root;
+    let last_segment_index = path_segments.len() - 1;
+
+    for (i, &segment) in path_segments.iter().enumerate() {
+        // Convert segment to a Value for use as a key in serde_yaml::Mapping
+        let segment_key_val = Value::String(segment.to_string());
+
+        if i == last_segment_index {
+            // This is the final segment, so update the value with the new string
+            let map = current_val
+                .as_mapping_mut()
+                .ok_or_else(|| format!("Parent of final key '{}' is not a mapping", segment))?;
+            map.insert(segment_key_val, Value::String(new_string_value)); // <--- Directly insert Value::String
+            return Ok(());
+        } else {
+            // This is an intermediate segment, navigate deeper.
+            let map = current_val
+                .as_mapping_mut()
+                .ok_or_else(|| format!("Path segment '{}' is not a mapping", segment))?;
+
+            // Get or insert a new mapping for the next level
+            current_val = map
+                .entry(segment_key_val)
+                .or_insert_with(|| Value::Mapping(serde_yaml::Mapping::new()));
+        }
+    }
+    Ok(()) // Should be unreachable if path_segments is not empty
+}
+
+fn count_all_found_key_value_pairs(value: &Value) -> usize {
+    match value {
+        Value::Mapping(map) => {
+            // For any map encountered (including nested ones),
+            // count its direct key-value pairs AND recurse into its values.
+            let mut count = map.len(); // Count direct key-value pairs in this map
+            for (_key, val) in map {
+                count += count_all_found_key_value_pairs(val); // Add counts from nested values
+            }
+            count
+        }
+        Value::Sequence(sequence) => {
+            // For a sequence (list), iterate through its elements and
+            // recursively count key-value pairs within each element.
+            let mut count = 0;
+            for item in sequence {
+                count += count_all_found_key_value_pairs(item);
+            }
+            count
+        }
+        _ => {
+            // Scalars (strings, numbers, booleans, null) don't have key-value pairs,
+            // so they contribute 0 to the count.
+            0
+        }
+    }
 }

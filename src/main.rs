@@ -226,9 +226,8 @@ fn task_creating(mp_struct: &mut Mainpage, app: &mut App) {
                 Actions::Enter => {
                     if *mp_struct.get_yaml_mode() {
                         // mp_struct.apply_selected_yaml_update();
-                        app.pass_template_to_task_list();
-                        mp_struct.update_task_list(app.get_task_queue_names());
-                        mp_struct.set_create_window(false);
+                        mp_struct.write_buff_to_yaml();
+                        mp_struct.toggle_update_yaml_selection()
                     } else {
                         app.pass_template_to_task_list();
                         mp_struct.update_task_list(app.get_task_queue_names());
