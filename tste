@@ -1,0 +1,11 @@
+config:
+  current_task: new_task
+  current_dir: ~./Isaaclab02/IsaacLab/
+test:
+  Task: Isaac-Push-vBen
+  No: any
+  Tes04t:
+  - 12
+  - 32
+  - 32
+  Test05: 25

@@ -12,8 +12,10 @@ use ratatui::{
     widgets::{Block, Borders, Clear, List, ListItem, ListState, Paragraph},
 };
 use serde::{Deserialize, Serialize};
-use serde_yaml::{Value, from_str};
+use serde_yaml::from_str;
+use serde_yaml::{Number, Value};
 use std::collections::HashMap;
+use std::str::FromStr;
 use std::{
     fs::File,
     io::{self, Read, Write},
@@ -445,9 +447,23 @@ fn set_nested_value_mut(
 ) -> Result<(), String> {
     let path_segments: Vec<&str> = flattened_key.split('.').collect();
 
+    // --- New logic to parse new_string_value ---
+    let parsed_value = if let Ok(int_val) = new_string_value.parse::<i64>() {
+        Value::Number(Number::from(int_val))
+    } else if let Ok(float_val) = new_string_value.parse::<f64>() {
+        Value::Number(Number::from_str(&new_string_value).unwrap()) // Or handle error if FromStr fails (unlikely here)
+    } else if new_string_value.eq_ignore_ascii_case("true") {
+        Value::Bool(true)
+    } else if new_string_value.eq_ignore_ascii_case("false") {
+        Value::Bool(false)
+    } else {
+        Value::String(new_string_value)
+    };
+    // --- End of new logic ---
+
     if path_segments.is_empty() {
         // If the flattened key is empty, it means we are trying to replace the root.
-        *root = Value::String(new_string_value);
+        *root = parsed_value; // Use parsed_value here
         return Ok(());
     }
 
@@ -459,11 +475,11 @@ fn set_nested_value_mut(
         let segment_key_val = Value::String(segment.to_string());
 
         if i == last_segment_index {
-            // This is the final segment, so update the value with the new string
+            // This is the final segment, so update the value with the parsed value
             let map = current_val
                 .as_mapping_mut()
                 .ok_or_else(|| format!("Parent of final key '{}' is not a mapping", segment))?;
-            map.insert(segment_key_val, Value::String(new_string_value)); // <--- Directly insert Value::String
+            map.insert(segment_key_val, parsed_value); // <--- Use parsed_value here
             return Ok(());
         } else {
             // This is an intermediate segment, navigate deeper.
