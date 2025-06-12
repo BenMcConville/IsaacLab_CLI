@@ -163,7 +163,7 @@ fn task_browsing(mp_struct: &mut Mainpage, app: &mut App) {
             eprintln!("Error reading key input.");
         }
         _ => {
-            eprint!(" Unidenfitied Enum");
+            // eprint!(" Unidenfitied Enum");
         }
     }
 }
@@ -252,7 +252,7 @@ fn task_creating(mp_struct: &mut Mainpage, app: &mut App) {
                     // println!("No input detected within the timeout.");
                 }
                 _ => {
-                    eprint!(" Unidentified Enum");
+                    // eprint!(" Unidentified Enum");
                 }
             }
         }

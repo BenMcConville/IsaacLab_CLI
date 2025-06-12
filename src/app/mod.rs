@@ -155,6 +155,16 @@ impl App {
                 name.pop();
                 task.set_task_name(name);
             }
+            if creation_state == CreationState::Envname {
+                let mut env = task.get_environment().to_string();
+                env.pop();
+                task.set_environment(env);
+            }
+            if creation_state == CreationState::Dir {
+                let mut dir = task.get_directory().to_string();
+                dir.pop();
+                task.set_directory(dir);
+            }
         }
     }
 }
